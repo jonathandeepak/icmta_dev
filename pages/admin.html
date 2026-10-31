@@ -97,6 +97,10 @@
 <button data-page="profile">Member Profile</button>
 <button data-page="users">User Management</button>
 <button data-page="event-approvals">Event Approvals <span id="navPendingEventsBadge" class="badge" style="background:#fff8ec;color:#7a5c00;font-size:11px;padding:2px 7px;border-radius:10px;margin-left:6px;display:none;">0</span></button>
+<button data-page="advertisements">Advertisements</button>
+
+<button data-page="reports">Reports &amp; Analytics</button>
+
 </div><button id="logoutBtn" class="btn secondary logout" type="button" onclick="logout()">Logout</button></aside>
 
 <main class="main"><div class="top"><div><h1 id="title">Dashboard</h1><p>Centralized member collection, management, search and visualization</p></div><div style="display:flex;align-items:center;gap:10px"><a href="public-directory.html" class="btn secondary" style="font-size:12px;text-decoration:none">View Public Directory &rarr;</a><div class="role" id="rolePill">Administrator</div></div></div>
@@ -248,6 +252,144 @@
 </div>
 
 </section>
+
+
+<!-- =====================================================
+     ADMIN REPORTS & ANALYTICS
+     Purpose:
+     Displays membership statistics, payment summaries,
+     financial information, and membership-category reports.
+     Data is loaded dynamically from the backend API.
+     ===================================================== -->
+<section id="reports" class="page">
+
+  <div class="panel">
+
+    <!-- Reports page title and description -->
+    <h2>Reports &amp; Analytics</h2>
+    <p class="subtitle">
+      Membership, payment, financial, and category reports.
+    </p>
+
+    
+<!-- Export report data for analysis in spreadsheet applications -->
+<div class="report-actions">
+  <button type="button" id="exportReportsCsv">
+    Export Reports to CSV
+  </button>
+</div>
+
+
+<!-- Date filters for Reports & Analytics -->
+<div class="report-actions">
+  <label for="reportStartDate">Start Date:</label>
+  <input type="date" id="reportStartDate">
+
+  <label for="reportEndDate">End Date:</label>
+  <input type="date" id="reportEndDate">
+
+  <button type="button" id="applyReportDateFilter">
+    Apply Filter
+  </button>
+
+  <button type="button" id="clearReportDateFilter">
+    Clear Filter
+  </button>
+</div>
+
+    <!-- Displays loading, success, or error messages -->
+    <div id="reportsMessage">Loading reports...</div>
+
+    <!-- Summary cards for key membership and payment metrics -->
+    <div class="stats-grid">
+
+      <!-- Total number of members in the database -->
+      <div class="stat-card">
+        <h3>Total Members</h3>
+        <p id="reportTotalMembers">—</p>
+      </div>
+
+      <!-- Number of membership applications approved by admins -->
+      <div class="stat-card">
+        <h3>Approved Applications</h3>
+        <p id="reportApprovedApps">—</p>
+      </div>
+
+      <!-- Number of payments currently awaiting processing -->
+      <div class="stat-card">
+        <h3>Pending Payments</h3>
+        <p id="reportPendingPayments">—</p>
+      </div>
+
+      <!-- Number of transactions with Paid status -->
+      <div class="stat-card">
+        <h3>Paid Transactions</h3>
+        <p id="reportPaidTransactions">—</p>
+      </div>
+ 
+<!-- New members within the selected reporting period -->
+<div class="stat-card">
+  <h3>New Registrations</h3>
+  <p id="reportNewMembers">—</p>
+</div>
+
+    </div>
+
+    <!-- Table: transaction counts and amounts grouped by payment status -->
+    <h3>Payments by Status</h3>
+    <div id="reportPaymentsStatus"></div>
+
+    <!-- Table: successful paid transactions grouped by membership category -->
+    <h3>Paid Payments by Membership Category</h3>
+    <div id="reportPaymentsCategory"></div>
+
+    <!-- Table: member counts grouped by membership category -->
+    <h3>Members by Membership Category</h3>
+    <div id="reportMembersCategory"></div>
+    
+<!-- Monthly revenue trend report -->
+<h3>Monthly Revenue Trends</h3>
+<p class="subtitle">
+  Monthly paid transactions grouped by currency.
+</p>
+<!-- Visual trend of monthly paid revenue -->
+<div id="reportMonthlyRevenueChart" class="report-revenue-chart"></div>
+
+<div id="reportMonthlyRevenue"></div>
+
+
+
+<!-- Membership Growth Report -->
+<h3>Monthly Membership Growth</h3>
+<p class="subtitle">
+  Number of member records created each month.
+</p>
+
+<div id="reportMembershipGrowthChart"
+     class="report-revenue-chart"></div>
+
+<div id="reportMembershipGrowth"></div>
+
+
+<!-- Membership Category Growth Report -->
+<h3>Membership Category Growth</h3>
+
+<p class="subtitle">
+  Monthly new registrations grouped by membership category.
+</p>
+
+<!-- Category growth chart -->
+<div id="reportCategoryGrowthChart"
+     class="report-revenue-chart"></div>
+
+<!-- Category growth table -->
+<div id="reportCategoryGrowth"></div>
+
+
+  </div>
+</section>
+<!-- END ADMIN REPORTS & ANALYTICS -->
+ 
 
 <section id="directory" class="page"><div class="panel"><h2>Faculty Directory</h2>
 <div class="toolbar"><input id="search" placeholder="Search name, college, department or expertise" oninput="renderDirectory()"><select id="filterState" onchange="renderDirectory()"><option value="">All States</option></select><select id="filterCountry" onchange="renderDirectory()"><option value="">All Countries</option></select><select id="filterDes" onchange="renderDirectory()"><option value="">All Designations</option><option>Professor</option><option>Associate Professor</option><option>Assistant Professor</option><option>Research Scholar</option></select><select id="sortBy" onchange="renderDirectory()"><option value="id">Member ID (Order)</option><option value="name">Name A–Z</option><option value="designation">Designation</option><option value="state">State</option><option value="country">Country</option><option value="expertise">Expertise</option></select><button class="btn primary" onclick="showPage('add')">+ Add Member</button></div>
@@ -549,6 +691,114 @@
       <div id="appReviewDetailsContainer"></div>
     </div>
 
+  </div>
+</section>
+
+<!--=========================================-->
+<!-- ADVERTISEMENT MANAGEMENT -->
+<!--=========================================-->
+<section id="advertisements" class="page">
+  <div class="panel">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px">
+      <div>
+        <h2 style="margin:0">Advertisement Management</h2>
+        <p class="subtitle">Create and manage website advertisements</p>
+      </div>
+      <button class="btn secondary" type="button" onclick="loadAdvertisementsAdmin()">
+        Refresh
+      </button>
+    </div>
+
+    <form id="advertisementForm" class="form">
+      <input type="hidden" id="advertisementId">
+
+      <div class="field">
+        <label for="adTitle">Advertisement Title *</label>
+        <input id="adTitle" required maxlength="200">
+      </div>
+
+      <div class="field">
+        <label for="adCategory">Category *</label>
+        <select id="adCategory" required>
+          <option value="Sponsor">Sponsor</option>
+          <option value="Partner">Partner</option>
+          <option value="ICMTA Event">ICMTA Event</option>
+          <option value="External Advertisement">External Advertisement</option>
+        </select>
+      </div>
+
+      <div class="field fullrow">
+        <label for="adDescription">Description</label>
+        <textarea id="adDescription"></textarea>
+      </div>
+
+      <div class="field fullrow">
+        <label for="adImage">Banner Image * (required for new ads)</label>
+        <input id="adImage" type="file" accept="image/*">
+      </div>
+
+      <div class="field fullrow">
+        <label for="adDestination">Destination URL</label>
+        <input id="adDestination" type="url" placeholder="https://example.com/">
+      </div>
+
+      <div class="field">
+        <label for="adPlacement">Placement *</label>
+        <select id="adPlacement" required>
+          <option value="both">Both</option>
+          <option value="home">Homepage only</option>
+          <option value="selected_pages">Selected pages</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="adPages">Selected Pages</label>
+        <input id="adPages" placeholder="home,events">
+        <div class="help">Comma-separated page identifiers; used for Selected pages placement.</div>
+      </div>
+
+      <div class="field">
+        <label for="adStartDate">Start Date</label>
+        <input id="adStartDate" type="datetime-local">
+      </div>
+
+      <div class="field">
+        <label for="adEndDate">End Date</label>
+        <input id="adEndDate" type="datetime-local">
+      </div>
+
+      <div class="actions">
+        <button class="btn primary" type="submit">Save Advertisement</button>
+        <button class="btn secondary" type="button" onclick="resetAdvertisementForm()">
+          Clear Form
+        </button>
+      </div>
+    </form>
+
+    <hr style="margin:24px 0;border:0;border-top:1px solid #e2e8f0">
+
+    <h3>Existing Advertisements</h3>
+    <p class="subtitle">New advertisements are created inactive. Activate them after reviewing.</p>
+
+    <div class="table-wrap" style="overflow-x:auto">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Banner</th>
+            <th>Title</th>
+            <th>Placement</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="advertisementsTableBody">
+          <tr>
+            <td colspan="6">Advertisement list will load here.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </section>
 
@@ -894,6 +1144,7 @@
 <script src="../js/auth.js"></script>
 <script src="../js/app.js"></script>
 <script src="../js/membership-approval.js"></script>
+<script src="../js/advertisements-admin.js"></script>
 
 </body></html>
 

@@ -13,6 +13,7 @@ const applicationsRouter = require("./routes/membershipApplications");
 const paymentsRouter = require("./routes/payments");
 const eventsRouter = require("./routes/publicEvents");
 const memberAuthRouter = require("./routes/memberAuth");
+const advertisementsRouter = require("./routes/advertisements");
 
 const { errorHandler } = require("./middleware/errorHandler");
 // Reuse the same database-backed membership checks as the member routes.
@@ -125,6 +126,19 @@ app.use(
     index: false,
   })
 );
+// ======================================================
+// ROUTERS
+// ====================================================== 
+//these are the temporary console logs to check if the routers are being imported correctly
+//they can be removed later
+console.log("membersRouter:", typeof membersRouter);
+console.log("authRouter:", typeof authRouter);
+console.log("applicationsRouter:", typeof applicationsRouter);
+console.log("eventsRouter:", typeof eventsRouter);
+console.log("paymentsRouter:", typeof paymentsRouter);
+console.log("memberAuthRouter:", typeof memberAuthRouter);
+console.log("advertisementsRouter:", typeof advertisementsRouter);
+console.log("adminRouter:", typeof adminRouter);
 
 // ======================================================
 // API ROUTES
@@ -139,6 +153,7 @@ app.use("/api", applicationsRouter);
 app.use("/api", eventsRouter);
 app.use("/api", paymentsRouter);
 app.use("/api", memberAuthRouter);
+app.use("/api", advertisementsRouter);
 
 // Protected admin routes
 app.use("/api", adminRouter);

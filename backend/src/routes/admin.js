@@ -232,6 +232,204 @@ router.get("/admin/metrics", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+
+router.get("/admin/reports/overview", async (req, res, next) => {
+  try {
+    
+const [
+  members,
+  applications,
+  paymentsByStatus,
+  paymentsByCategory,
+  membersByCategory,
+  monthlyRevenue,
+monthlyMembershipGrowth,
+membershipCategoryGrowth,
+] = await Promise.all([
+
+      query(`
+        SELECT COUNT(*) AS total_members
+        FROM members
+      `),
+
+      query(`
+        SELECT
+          approval_status,
+          COUNT(*) AS count
+        FROM membership_applications
+        GROUP BY approval_status
+      `),
+
+       // Payments by status within the selected payment creation date range.
+      query(`
+        SELECT
+          COALESCE(currency, 'Unknown') AS currency,
+          payment_status,
+          COUNT(*) AS transaction_count,
+          COALESCE(SUM(amount), 0) AS total_amount
+        FROM membership_payments
+        WHERE (? IS NULL OR DATE(created_at) >= ?)
+          AND (? IS NULL OR DATE(created_at) <= ?)
+        GROUP BY currency, payment_status
+        ORDER BY currency, payment_status
+      `, [
+        req.query.startDate || null,
+        req.query.startDate || null,
+        req.query.endDate || null,
+        req.query.endDate || null
+      ]),
+
+      // Paid payments by membership category within the selected date range.
+      query(`
+        SELECT
+          COALESCE(NULLIF(TRIM(membership_category), ''), 'General Member') AS membership_category,
+          COALESCE(currency, 'Unknown') AS currency,
+          SUM(amount) AS total_amount,
+          COUNT(*) AS transaction_count
+        FROM membership_payments
+        WHERE payment_status = 'Paid'
+          AND (? IS NULL OR DATE(paid_at) >= ?)
+          AND (? IS NULL OR DATE(paid_at) <= ?)
+        GROUP BY membership_category, currency
+        ORDER BY membership_category, currency
+      `, [
+        req.query.startDate || null,
+        req.query.startDate || null,
+        req.query.endDate || null,
+        req.query.endDate || null
+      ]),
+
+      query(`
+        SELECT
+          COALESCE(NULLIF(TRIM(membership_category), ''), 'General Member') AS membership_category,
+          COUNT(*) AS count
+        FROM members
+        GROUP BY membership_category
+        ORDER BY count DESC
+      `),
+
+
+      
+      // Monthly revenue from paid transactions within the selected date range.
+      query(`
+        SELECT
+          DATE_FORMAT(p.paid_at, '%Y-%m') AS month,
+          COALESCE(p.currency, 'Unknown') AS currency,
+          COUNT(*) AS transaction_count,
+          COALESCE(SUM(p.amount), 0) AS total_amount
+        FROM membership_payments p
+        WHERE p.payment_status = 'Paid'
+          AND p.paid_at IS NOT NULL
+          AND (? IS NULL OR DATE(p.paid_at) >= ?)
+          AND (? IS NULL OR DATE(p.paid_at) <= ?)
+        GROUP BY DATE_FORMAT(p.paid_at, '%Y-%m'), p.currency
+        ORDER BY month ASC, currency ASC
+      `, [
+        req.query.startDate || null,
+        req.query.startDate || null,
+        req.query.endDate || null,
+        req.query.endDate || null
+      ]),
+
+      
+      // Monthly membership growth based on member registration date.
+      query(`
+        SELECT
+          DATE_FORMAT(created_at, '%Y-%m') AS month,
+          COUNT(*) AS new_members
+        FROM members
+        WHERE (? IS NULL OR DATE(created_at) >= ?)
+          AND (? IS NULL OR DATE(created_at) <= ?)
+        GROUP BY DATE_FORMAT(created_at, '%Y-%m')
+        ORDER BY month ASC
+      `, [
+        req.query.startDate || null,
+        req.query.startDate || null,
+        req.query.endDate || null,
+        req.query.endDate || null
+      ]),
+
+
+      
+      // Monthly membership growth grouped by membership category.
+      query(`
+        SELECT
+          DATE_FORMAT(created_at, '%Y-%m') AS month,
+          COALESCE(NULLIF(TRIM(membership_category), ''), 'General Member') AS membership_category,
+          COUNT(*) AS new_members
+        FROM members
+        WHERE (? IS NULL OR DATE(created_at) >= ?)
+          AND (? IS NULL OR DATE(created_at) <= ?)
+        GROUP BY
+          DATE_FORMAT(created_at, '%Y-%m'),
+          membership_category
+        ORDER BY month ASC, membership_category ASC
+      `, [
+        req.query.startDate || null,
+        req.query.startDate || null,
+        req.query.endDate || null,
+        req.query.endDate || null
+      ]),
+
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        total_members: Number(members[0].total_members),
+
+        applications: applications.map(row => ({
+          status: row.approval_status,
+          count: Number(row.count),
+        })),
+
+        payments_by_status: paymentsByStatus.map(row => ({
+          currency: row.currency,
+          status: row.payment_status,
+          transaction_count: Number(row.transaction_count),
+          total_amount: Number(row.total_amount),
+        })),
+
+        paid_payments_by_category: paymentsByCategory.map(row => ({
+          membership_category: row.membership_category,
+          currency: row.currency,
+          total_amount: Number(row.total_amount),
+          transaction_count: Number(row.transaction_count),
+        })),
+
+         members_by_category: membersByCategory.map(row => ({
+          membership_category: row.membership_category,
+          count: Number(row.count),
+        })),
+
+        // Monthly revenue grouped by month and currency.
+        monthly_revenue: monthlyRevenue.map(row => ({
+          month: row.month,
+          currency: row.currency,
+          transaction_count: Number(row.transaction_count),
+          total_amount: Number(row.total_amount),
+        })),
+
+                // Monthly new-member registration statistics.
+        monthly_membership_growth: monthlyMembershipGrowth.map(row => ({
+          month: row.month,
+          new_members: Number(row.new_members),
+        })),
+        
+// Monthly registrations grouped by membership category.
+membership_category_growth: membershipCategoryGrowth.map(row => ({
+  month: row.month,
+  membership_category: row.membership_category,
+  new_members: Number(row.new_members),
+})),
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+
 router.get("/admin/applications", async (req, res, next) => {
   try {
     let status = cleanString(req.query.status);
