@@ -676,3 +676,334 @@ body{
   .icm-authslot .icm-whoami{display:none}
   .icm-authslot .icm-signin{padding:6px 12px;font-size:13px}
 }
+
+/* ============================================================
+   ICMTA ADVERTISEMENT POPUP MODAL
+   ------------------------------------------------------------
+   Purpose:
+   Styles the advertisement popup displayed on the ICMTA website.
+
+   Features:
+   - Full-screen overlay with a dimmed background
+   - Centered popup container and entrance animation
+   - Advertisement image, title, and description styling
+   - Close button styling
+   - Responsive layout for desktop and mobile devices
+   - Reduced-motion accessibility support
+
+   Related files:
+   - index.html: Popup HTML structure
+   - css/icmta-2026.css: Popup styles (this section)
+   - js/advertisements.js: Advertisement API integration
+   - Backend API: GET /api/advertisements?page=home
+
+   Important:
+   Keep all advertisement-popup-specific CSS within this section.
+   Avoid modifying unrelated homepage or shared component styles.
+   ============================================================ */
+
+   
+/* =========================================
+   ICMTA ADVERTISEMENT POPUP
+   ========================================= */
+
+.advertisement-modal[hidden] {
+  display: none !important;
+}
+
+.advertisement-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.advertisement-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(12, 25, 38, 0.72);
+  backdrop-filter: blur(3px);
+}
+
+.advertisement-popup {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 680px;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: #ffffff;
+  border-radius: 14px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  animation: advertisement-popup-enter 0.3s ease-out;
+}
+
+.advertisement-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  width: 38px;
+  height: 38px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.72);
+  color: #ffffff;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.advertisement-close:hover {
+  background: #004d66;
+}
+
+.advertisement-link {
+  display: block;
+}
+
+.advertisement-image {
+  display: block;
+  width: 100%;
+  max-height: 420px;
+  object-fit: contain;
+  background: #f4f7f9;
+  border-radius: 14px 14px 0 0;
+}
+
+.advertisement-details {
+  padding: 20px 24px 24px;
+}
+
+.advertisement-details h2 {
+  margin: 0 0 8px;
+  color: #004d66;
+  font-size: 24px;
+}
+
+.advertisement-details p {
+  margin: 0;
+  color: #52616b;
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+@keyframes advertisement-popup-enter {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 600px) {
+  .advertisement-modal {
+    padding: 14px;
+  }
+
+  .advertisement-popup {
+    max-height: 85vh;
+  }
+
+  .advertisement-image {
+    max-height: 300px;
+  }
+
+  .advertisement-details {
+    padding: 16px;
+  }
+
+  .advertisement-details h2 {
+    font-size: 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .advertisement-popup {
+    animation: none;
+  }
+}
+
+
+
+/* =====================================================
+   ADMIN REPORTS & ANALYTICS
+   Scoped styles: these rules apply only to the Reports page.
+   ===================================================== */
+
+#reports .stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin: 24px 0;
+}
+
+#reports .stat-card {
+  padding: 20px;
+  background: #ffffff;
+  border: 1px solid #dce5ec;
+  border-radius: 12px;
+  box-shadow: 0 3px 10px rgba(20, 55, 75, 0.06);
+}
+
+#reports .stat-card h3 {
+  margin: 0 0 12px;
+  color: #526979;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+#reports .stat-card p {
+  margin: 0;
+  color: #07566b;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+#reports > .panel > h3 {
+  margin: 28px 0 12px;
+  color: #07566b;
+  font-size: 18px;
+}
+
+/* Reports tables */
+#reports #reportPaymentsStatus,
+#reports #reportPaymentsCategory,
+#reports #reportMembersCategory {
+  width: 100%;
+  margin-bottom: 20px;
+  overflow-x: auto;
+}
+
+#reports table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #ffffff;
+  font-size: 14px;
+}
+
+#reports table th,
+#reports table td {
+  padding: 12px 14px;
+  border: 1px solid #e0e7ed;
+  text-align: left;
+}
+
+#reports table th {
+  background: #edf5f8;
+  color: #07566b;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+#reports table tbody tr:nth-child(even) {
+  background: #f7fafc;
+}
+
+#reports table tbody tr:hover {
+  background: #edf6f9;
+}
+
+#reports #reportsMessage {
+  margin: 12px 0;
+  color: #526979;
+  font-size: 14px;
+}
+
+/* Responsive layout for tablets and mobile devices */
+@media (max-width: 1000px) {
+  #reports .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  #reports .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #reports .stat-card p {
+    font-size: 24px;
+  }
+
+  #reports table th,
+  #reports table td {
+    padding: 9px 10px;
+  }
+}
+
+
+/* Monthly revenue chart — Reports page only */
+#reports .report-revenue-chart {
+  margin: 16px 0 24px;
+  padding: 20px;
+  border: 1px solid #dce5ec;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+#reports .report-revenue-chart h4 {
+  margin: 0 0 18px;
+  color: #07566b;
+}
+
+#reports .report-revenue-item {
+  display: grid;
+  grid-template-columns: 85px minmax(80px, 1fr) 140px 130px;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 0;
+}
+
+#reports .report-revenue-label {
+  font-weight: 600;
+  color: #344b5a;
+}
+
+#reports .report-revenue-track {
+  height: 18px;
+  overflow: hidden;
+  background: #edf3f6;
+  border-radius: 9px;
+}
+
+#reports .report-revenue-bar {
+  height: 100%;
+  background: #087f8c;
+  border-radius: 9px;
+  transition: width 0.3s ease;
+}
+
+#reports .report-revenue-amount {
+  font-weight: 700;
+  color: #07566b;
+}
+
+#reports .report-revenue-item small {
+  color: #526979;
+}
+
+@media (max-width: 700px) {
+  #reports .report-revenue-item {
+    grid-template-columns: 1fr auto;
+    gap: 8px;
+  }
+
+  #reports .report-revenue-track {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  #reports .report-revenue-amount {
+    text-align: right;
+  }
+}
+

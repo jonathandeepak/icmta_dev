@@ -232,6 +232,204 @@ router.get("/admin/metrics", async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+
+router.get("/admin/reports/overview", async (req, res, next) => {
+  try {
+    
+const [
+  members,
+  applications,
+  paymentsByStatus,
+  paymentsByCategory,
+  membersByCategory,
+  monthlyRevenue,
+monthlyMembershipGrowth,
+membershipCategoryGrowth,
+] = await Promise.all([
+
+      query(`
+        SELECT COUNT(*) AS total_members
+        FROM members
+      `),
+
+      query(`
+        SELECT
+          approval_status,
+          COUNT(*) AS count
+        FROM membership_applications
+        GROUP BY approval_status
+      `),
+
+       // Payments by status within the selected payment creation date range.
+      query(`
+        SELECT
+          COALESCE(currency, 'Unknown') AS currency,
+          payment_status,
+          COUNT(*) AS transaction_count,
+          COALESCE(SUM(amount), 0) AS total_amount
+        FROM membership_payments
+        WHERE (? IS NULL OR DATE(created_at) >= ?)
+          AND (? IS NULL OR DATE(created_at) <= ?)
+        GROUP BY currency, payment_status
+        ORDER BY currency, payment_status
+      `, [
+        req.query.startDate || null,
+        req.query.startDate || null,
+        req.query.endDate || null,
+        req.query.endDate || null
+      ]),
+
+      // Paid payments by membership category within the selected date range.
+      query(`
+        SELECT
+          COALESCE(NULLIF(TRIM(membership_category), ''), 'General Member') AS membership_category,
+          COALESCE(currency, 'Unknown') AS currency,
+          SUM(amount) AS total_amount,
+          COUNT(*) AS transaction_count
+        FROM membership_payments
+        WHERE payment_status = 'Paid'
+          AND (? IS NULL OR DATE(paid_at) >= ?)
+          AND (? IS NULL OR DATE(paid_at) <= ?)
+        GROUP BY membership_category, currency
+        ORDER BY membership_category, currency
+      `, [
+        req.query.startDate || null,
+        req.query.startDate || null,
+        req.query.endDate || null,
+        req.query.endDate || null
+      ]),
+
+      query(`
+        SELECT
+          COALESCE(NULLIF(TRIM(membership_category), ''), 'General Member') AS membership_category,
+          COUNT(*) AS count
+        FROM members
+        GROUP BY membership_category
+        ORDER BY count DESC
+      `),
+
+
+      
+      // Monthly revenue from paid transactions within the selected date range.
+      query(`
+        SELECT
+          DATE_FORMAT(p.paid_at, '%Y-%m') AS month,
+          COALESCE(p.currency, 'Unknown') AS currency,
+          COUNT(*) AS transaction_count,
+          COALESCE(SUM(p.amount), 0) AS total_amount
+        FROM membership_payments p
+        WHERE p.payment_status = 'Paid'
+          AND p.paid_at IS NOT NULL
+          AND (? IS NULL OR DATE(p.paid_at) >= ?)
+          AND (? IS NULL OR DATE(p.paid_at) <= ?)
+        GROUP BY DATE_FORMAT(p.paid_at, '%Y-%m'), p.currency
+        ORDER BY month ASC, currency ASC
+      `, [
+        req.query.startDate || null,
+        req.query.startDate || null,
+        req.query.endDate || null,
+        req.query.endDate || null
+      ]),
+
+      
+      // Monthly membership growth based on member registration date.
+      query(`
+        SELECT
+          DATE_FORMAT(created_at, '%Y-%m') AS month,
+          COUNT(*) AS new_members
+        FROM members
+        WHERE (? IS NULL OR DATE(created_at) >= ?)
+          AND (? IS NULL OR DATE(created_at) <= ?)
+        GROUP BY DATE_FORMAT(created_at, '%Y-%m')
+        ORDER BY month ASC
+      `, [
+        req.query.startDate || null,
+        req.query.startDate || null,
+        req.query.endDate || null,
+        req.query.endDate || null
+      ]),
+
+
+      
+      // Monthly membership growth grouped by membership category.
+      query(`
+        SELECT
+          DATE_FORMAT(created_at, '%Y-%m') AS month,
+          COALESCE(NULLIF(TRIM(membership_category), ''), 'General Member') AS membership_category,
+          COUNT(*) AS new_members
+        FROM members
+        WHERE (? IS NULL OR DATE(created_at) >= ?)
+          AND (? IS NULL OR DATE(created_at) <= ?)
+        GROUP BY
+          DATE_FORMAT(created_at, '%Y-%m'),
+          membership_category
+        ORDER BY month ASC, membership_category ASC
+      `, [
+        req.query.startDate || null,
+        req.query.startDate || null,
+        req.query.endDate || null,
+        req.query.endDate || null
+      ]),
+
+    ]);
+
+    res.json({
+      success: true,
+      data: {
+        total_members: Number(members[0].total_members),
+
+        applications: applications.map(row => ({
+          status: row.approval_status,
+          count: Number(row.count),
+        })),
+
+        payments_by_status: paymentsByStatus.map(row => ({
+          currency: row.currency,
+          status: row.payment_status,
+          transaction_count: Number(row.transaction_count),
+          total_amount: Number(row.total_amount),
+        })),
+
+        paid_payments_by_category: paymentsByCategory.map(row => ({
+          membership_category: row.membership_category,
+          currency: row.currency,
+          total_amount: Number(row.total_amount),
+          transaction_count: Number(row.transaction_count),
+        })),
+
+         members_by_category: membersByCategory.map(row => ({
+          membership_category: row.membership_category,
+          count: Number(row.count),
+        })),
+
+        // Monthly revenue grouped by month and currency.
+        monthly_revenue: monthlyRevenue.map(row => ({
+          month: row.month,
+          currency: row.currency,
+          transaction_count: Number(row.transaction_count),
+          total_amount: Number(row.total_amount),
+        })),
+
+                // Monthly new-member registration statistics.
+        monthly_membership_growth: monthlyMembershipGrowth.map(row => ({
+          month: row.month,
+          new_members: Number(row.new_members),
+        })),
+        
+// Monthly registrations grouped by membership category.
+membership_category_growth: membershipCategoryGrowth.map(row => ({
+  month: row.month,
+  membership_category: row.membership_category,
+  new_members: Number(row.new_members),
+})),
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+
 router.get("/admin/applications", async (req, res, next) => {
   try {
     let status = cleanString(req.query.status);
@@ -752,5 +950,265 @@ router.post("/admin/payments/:payment_id/reject", async (req, res, next) => {
     res.json({ success:true,message:"Payment marked as Failed.",data:{payment_id:p.payment_id,payment_status:p.payment_status} });
   } catch (err) { next(err); }
 });
+
+
+
+/**
+ * Paginated records for Reports & Analytics.
+ * Supported types: members, registrations, applications, payments.
+ * Existing admin list APIs remain unchanged.
+ */
+router.get("/admin/reports/details", async (req, res, next) => {
+  try {
+    const type = cleanString(req.query.type).toLowerCase();
+    const allowedTypes = ["members", "registrations", "applications", "payments"];
+
+    if (!allowedTypes.includes(type)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid report type."
+      });
+    }
+
+    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(
+      100,
+      Math.max(1, Number.parseInt(req.query.limit, 10) || 20)
+    );
+    const offset = (page - 1) * limit;
+
+    const search = cleanString(req.query.search) || "";
+    const status = cleanString(req.query.status) || "";
+    const category = cleanString(req.query.category) || "";
+    const startDate = cleanString(req.query.startDate) || null;
+    const endDate = cleanString(req.query.endDate) || null;
+
+    const where = [];
+    const params = [];
+
+    const addDateFilter = (column) => {
+      if (startDate) {
+        where.push(`DATE(${column}) >= ?`);
+        params.push(startDate);
+      }
+      if (endDate) {
+        where.push(`DATE(${column}) <= ?`);
+        params.push(endDate);
+      }
+    };
+
+    let fromSql = "";
+    let selectSql = "";
+    let searchSql = "";
+
+    if (type === "members" || type === "registrations") {
+      fromSql = `
+        FROM members m
+        LEFT JOIN member_contact_info c ON m.member_id = c.member_id
+        LEFT JOIN member_academic_profile ap ON m.member_id = ap.member_id
+      `;
+
+      selectSql = `
+        SELECT
+          m.member_id,
+          m.name,
+          m.designation,
+          m.department,
+          m.institution,
+          m.membership_category,
+          m.is_active,
+          m.my_status,
+          m.created_at,
+          c.professional_email,
+          c.personal_email,
+          c.mobile,
+          c.city,
+          c.state_province,
+          c.country,
+          ap.qualification,
+          ap.photo_url
+      `;
+
+      searchSql = `(
+        m.member_id LIKE ? OR
+        m.name LIKE ? OR
+        m.institution LIKE ? OR
+        m.designation LIKE ? OR
+        c.professional_email LIKE ? OR
+        c.personal_email LIKE ? OR
+        c.mobile LIKE ?
+      )`;
+
+      if (type === "registrations") {
+        addDateFilter("m.created_at");
+      }
+
+      if (type === "members") {
+        addDateFilter("m.created_at");
+      }
+
+      if (category) {
+        where.push("m.membership_category = ?");
+        params.push(category);
+      }
+
+      if (status) {
+        where.push("(m.my_status = ? OR CAST(m.is_active AS CHAR) = ?)");
+        params.push(status, status);
+      }
+    }
+
+    
+if (type === "applications") {
+  fromSql = `
+    FROM membership_applications ma
+    LEFT JOIN application_contact_info ac
+      ON ma.application_id = ac.application_id
+  `;
+
+  selectSql = `
+    SELECT
+      ma.application_id,
+      ma.member_id,
+      ma.full_name,
+      ma.membership_category,
+      ma.approval_status,
+      ma.created_at,
+      ma.updated_at,
+      ac.professional_email,
+      ac.personal_email,
+      ac.mobile
+  `;
+
+  searchSql = `(
+    CAST(ma.application_id AS CHAR) LIKE ? OR
+    ma.full_name LIKE ? OR
+    ma.member_id LIKE ? OR
+    ac.professional_email LIKE ? OR
+    ac.personal_email LIKE ? OR
+    ac.mobile LIKE ?
+  )`;
+
+  addDateFilter("ma.created_at");
+
+  if (status) {
+    where.push("ma.approval_status = ?");
+    params.push(status);
+  }
+
+  if (category) {
+    where.push("ma.membership_category = ?");
+    params.push(category);
+  }
+}
+
+
+    if (type === "payments") {
+      fromSql = `
+        FROM membership_payments p
+        LEFT JOIN membership_applications ma
+          ON p.application_id = ma.application_id
+        LEFT JOIN application_contact_info ac
+          ON ma.application_id = ac.application_id
+      `;
+
+      selectSql = `
+        SELECT
+          p.payment_id,
+          p.application_id,
+          p.member_id,
+          ma.full_name AS applicant_name,
+          COALESCE(ac.professional_email, ac.personal_email) AS applicant_email,
+          ac.mobile AS applicant_mobile,
+          p.membership_category,
+          p.amount,
+          p.currency,
+          p.payment_method,
+          p.payment_gateway,
+          p.transaction_id,
+          p.payment_status,
+          p.paid_at,
+          p.created_at,
+          p.updated_at
+      `;
+
+      searchSql = `(
+        CAST(p.payment_id AS CHAR) LIKE ? OR
+        CAST(p.application_id AS CHAR) LIKE ? OR
+        p.member_id LIKE ? OR
+        ma.full_name LIKE ? OR
+        p.transaction_id LIKE ? OR
+        ac.professional_email LIKE ? OR
+        ac.personal_email LIKE ?
+      )`;
+
+      addDateFilter("COALESCE(p.paid_at, p.created_at)");
+
+      if (status) {
+        where.push("p.payment_status = ?");
+        params.push(status);
+      }
+
+      if (category) {
+        where.push("p.membership_category = ?");
+        params.push(category);
+      }
+    }
+
+    if (search) {
+      where.push(searchSql);
+      const term = `%${search}%`;
+      const searchFields = type === "members" || type === "registrations"
+        ? 7
+        : type === "applications" ? 6 : 7;
+
+      for (let i = 0; i < searchFields; i++) {
+        params.push(term);
+      }
+    }
+
+    const whereSql = where.length
+      ? `WHERE ${where.join(" AND ")}`
+      : "";
+
+    const countRows = await query(
+      `SELECT COUNT(*) AS total ${fromSql} ${whereSql}`,
+      params
+    );
+
+    const rows = await query(
+      `${selectSql} ${fromSql} ${whereSql}
+       ORDER BY ${
+         type === "members" || type === "registrations"
+           ? "m.created_at"
+           : type === "applications"
+             ? "ma.created_at"
+             : "COALESCE(p.paid_at, p.created_at)"
+       } DESC
+       LIMIT ${limit} OFFSET ${offset}`,
+      params
+    );
+
+    const total = Number(countRows[0]?.total || 0);
+
+    res.json({
+      success: true,
+      data: rows.map(row => ({
+        ...row,
+        amount: row.amount == null ? null : Number(row.amount)
+      })),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+
 
 module.exports = router;

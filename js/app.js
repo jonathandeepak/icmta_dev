@@ -1580,10 +1580,469 @@ const pageTitles={
   profile:"Member Profile",
   memberDetails:"Member Details",
   users:"User Management",
-  "membership-applications":"Membership Applications"
+  "membership-applications":"Membership Applications",
+  advertisements: "Advertisements",
+  reports: "Reports & Analytics"
 };
 
+/*CSV export function*/
+/**
+ * Exports report data as a CSV file for spreadsheet analysis.
+ * Includes membership, payment, category, and monthly revenue data.
+ */
+function exportAdminReportsCsv() {
+  const rows = window.adminReportsData;
+
+  if (!rows) {
+    alert("Load Reports & Analytics before exporting.");
+    return;
+  }
+
+  const csvRows = [
+    ["Report Section", "Month", "Category", "Currency", "Status",
+      "Transactions", "Amount", "Count"],
+
+    ...rows.payments_by_status.map(row => [
+      "Payments by Status", "", "", row.currency, row.status,
+      row.transaction_count, row.total_amount, ""
+    ]),
+
+    ...rows.paid_payments_by_category.map(row => [
+      "Paid Payments by Category", "", row.membership_category,
+      row.currency, "Paid", row.transaction_count, row.total_amount, ""
+    ]),
+
+    ...rows.members_by_category.map(row => [
+      "Members by Category", "", row.membership_category, "", "", "", "",
+      row.count
+    ]),
+
+    ...rows.monthly_revenue.map(row => [
+      "Monthly Revenue", row.month, "", row.currency, "Paid",
+      row.transaction_count, row.total_amount, ""
+    ]),
+
+    ["Total Members", "", "", "", "", "", "", rows.total_members]
+  ];
+
+  // Escape commas, quotes, and line breaks safely for CSV.
+  const csv = csvRows.map(row =>
+    row.map(value => {
+      const text = String(value ?? "");
+      return `"${text.replace(/"/g, '""')}"`;
+    }).join(",")
+  ).join("\r\n");
+
+  const blob = new Blob(["\uFEFF" + csv], {
+    type: "text/csv;charset=utf-8;"
+  });
+
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = "icmta-admin-reports.csv";
+  link.click();
+
+  URL.revokeObjectURL(url);
+}
+
+
+/**
+ * Loads Reports & Analytics data from the admin API
+ * and updates the report summary cards and tables.
+ */
+async function loadAdminReports() {
+  const message = $("reportsMessage");
+
+  try {
+    if (message) message.textContent = "Loading reports...";
+
+    const token = localStorage.getItem("ICMTAdminToken");
+
+    const API_BASE_URL = "http://localhost:5000";
+
+// Fetch Admin Reports with Optional Date Filters
+// Reads the selected start and end dates, adds them as query parameters,
+// and requests filtered report data from the backend using the admin token.
+
+
+const startDate = document.getElementById("reportStartDate")?.value;
+const endDate = document.getElementById("reportEndDate")?.value;
+
+const params = new URLSearchParams();
+
+if (startDate) params.set("startDate", startDate);
+if (endDate) params.set("endDate", endDate);
+
+const queryString = params.toString();
+const reportsUrl = `${API_BASE_URL}/api/admin/reports/overview${
+  queryString ? `?${queryString}` : ""
+}`;
+
+const response = await fetch(reportsUrl, {
+  headers: {
+    Authorization: `Bearer ${token}`
+  }
+});
+
+    if (!response.ok) {
+      throw new Error(`Failed to load reports (HTTP ${response.status})`);
+    }
+
+    const result = await response.json();
+
+    if (!result.success) {
+      throw new Error("The reports API returned an unsuccessful response.");
+    }
+
+    const data = result.data;
+
+    // Retain the latest report response for CSV export.
+window.adminReportsData = data;
+
+    // Calculate application counts by approval status.
+    const applicationCount = status =>
+      (data.applications || [])
+        .filter(row => row.status === status)
+        .reduce((total, row) => total + row.count, 0);
+
+    // Calculate payment counts by status across currencies.
+    const paymentCount = status =>
+      (data.payments_by_status || [])
+        .filter(row => row.status === status)
+        .reduce((total, row) => total + row.transaction_count, 0);
+    // Display new member registrations within the selected date range.
+const newMembers = (data.monthly_membership_growth || [])
+  .reduce((total, row) => total + Number(row.new_members || 0), 0);
+
+
+    // Update summary cards.
+    $("reportTotalMembers").textContent = data.total_members;// Display the total number of members.
+    $("reportApprovedApps").textContent = applicationCount("Approved");// Display the count of approved membership applications.
+    $("reportPendingPayments").textContent = paymentCount("Pending");// Display the count of paid transactions.
+    $("reportPaidTransactions").textContent = paymentCount("Paid");// Display the count of new member registrations.
+    $("reportNewMembers").textContent = newMembers;   // Display the count of new member registrations.
+    // Render a table using textContent to avoid inserting raw HTML data.
+    const renderTable = (containerId, columns, rows) => {
+      const container = $(containerId);
+      if (!container) return;
+
+      container.replaceChildren();
+
+      if (!rows.length) {
+        container.textContent = "No report data available.";
+        return;
+      }
+
+      const table = document.createElement("table");
+      const thead = document.createElement("thead");
+      const headerRow = document.createElement("tr");
+
+      columns.forEach(column => {
+        const th = document.createElement("th");
+        th.textContent = column.label;
+        headerRow.appendChild(th);
+      });
+
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
+
+      const tbody = document.createElement("tbody");
+
+      rows.forEach(row => {
+        const tr = document.createElement("tr");
+
+        columns.forEach(column => {
+          const td = document.createElement("td");
+          td.textContent = column.format
+  ? column.format(row[column.key], row)
+  : row[column.key] ?? "";
+          tr.appendChild(td);
+        });
+
+        tbody.appendChild(tr);
+      });
+
+      table.appendChild(tbody);
+      container.appendChild(table);
+    };
+
+    // Display payment totals by status and currency.
+    renderTable(
+      "reportPaymentsStatus",
+      [
+        { key: "currency", label: "Currency" },
+        { key: "status", label: "Payment Status" },
+        { key: "transaction_count", label: "Transactions" },
+        {
+          key: "total_amount",
+          label: "Total Amount",
+          format: value =>
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 2
+  }).format(Number(value))
+        }
+      ],
+      data.payments_by_status || []
+    );
+
+    // Display paid payment totals by membership category.
+    renderTable(
+      "reportPaymentsCategory",
+      [
+        { key: "membership_category", label: "Membership Category" },
+        { key: "currency", label: "Currency" },
+        { key: "transaction_count", label: "Transactions" },
+        {
+          key: "total_amount",
+          label: "Paid Amount",
+          format: value =>
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 2
+  }).format(Number(value))
+        }
+      ],
+      data.paid_payments_by_category || []
+    );
+
+    // Display member counts by membership category.
+    renderTable(
+      "reportMembersCategory",
+      [
+        { key: "membership_category", label: "Membership Category" },
+        { key: "count", label: "Members" }
+      ],
+      data.members_by_category || []
+    );
+
+    // Display monthly paid revenue, separated by currency.
+    renderTable(
+      "reportMonthlyRevenue",
+      [
+        { key: "month", label: "Month" },
+        { key: "currency", label: "Currency" },
+        { key: "transaction_count", label: "Paid Transactions" },
+        {
+          key: "total_amount",
+          label: "Revenue",
+          format: (value, row) =>
+            new Intl.NumberFormat("en-IN", {
+              style: "currency",
+              currency: row.currency || "INR",
+              maximumFractionDigits: 2
+            }).format(Number(value))
+        }
+      ],
+      data.monthly_revenue || []
+    );
+
+    
+    // Render a simple bar chart for monthly revenue.
+    const chart = $("reportMonthlyRevenueChart");
+
+    if (chart) {
+      chart.replaceChildren();
+
+      const revenueRows = data.monthly_revenue || [];
+
+      if (revenueRows.length === 0) {
+        chart.textContent = "No monthly revenue data available.";
+      } else {
+        // Keep currencies separate; each currency gets its own chart group.
+        const currencies = [...new Set(
+          revenueRows.map(row => row.currency || "Unknown")
+        )];
+
+        currencies.forEach(currency => {
+          const heading = document.createElement("h4");
+          heading.textContent = `Monthly Revenue (${currency})`;
+          chart.appendChild(heading);
+
+          const rows = revenueRows.filter(
+            row => (row.currency || "Unknown") === currency
+          );
+
+          const maxAmount = Math.max(
+            ...rows.map(row => Number(row.total_amount) || 0),
+            1
+          );
+
+          rows.forEach(row => {
+            const item = document.createElement("div");
+            item.className = "report-revenue-item";
+
+            const label = document.createElement("div");
+            label.className = "report-revenue-label";
+            label.textContent = row.month;
+
+            const track = document.createElement("div");
+            track.className = "report-revenue-track";
+
+            const bar = document.createElement("div");
+            bar.className = "report-revenue-bar";
+            bar.style.width =
+              `${Math.max(0, Number(row.total_amount) / maxAmount * 100)}%`;
+
+            bar.setAttribute("role", "img");
+            bar.setAttribute(
+              "aria-label",
+              `${row.month}: ${row.total_amount} ${currency}`
+            );
+
+            track.appendChild(bar);
+
+            const amount = document.createElement("span");
+            amount.className = "report-revenue-amount";
+            amount.textContent =
+              new Intl.NumberFormat("en-IN", {
+                style: "currency",
+                currency,
+                maximumFractionDigits: 2
+              }).format(Number(row.total_amount) || 0);
+
+            const transactions = document.createElement("small");
+            transactions.textContent =
+              `${Number(row.transaction_count) || 0} paid transactions`;
+
+            item.append(label, track, amount, transactions);
+            chart.appendChild(item);
+          });
+        });
+
+        
+// Render monthly membership growth table.
+renderTable(
+  "reportMembershipGrowth",
+  [
+    { key: "month", label: "Month" },
+    { key: "new_members", label: "New Members" }
+  ],
+  data.monthly_membership_growth || []
+);
+
+// Render monthly membership growth chart.
+const membershipChart = $("reportMembershipGrowthChart");
+
+if (membershipChart) {
+  membershipChart.replaceChildren();
+
+  const growthRows = data.monthly_membership_growth || [];
+
+  if (growthRows.length === 0) {
+    membershipChart.textContent = "No membership growth data available.";
+  } else {
+    const maxMembers = Math.max(
+      ...growthRows.map(row => Number(row.new_members) || 0),
+      1
+    );
+
+    growthRows.forEach(row => {
+      const item = document.createElement("div");
+      item.className = "report-revenue-item";
+
+      const label = document.createElement("div");
+      label.className = "report-revenue-label";
+      label.textContent = row.month;
+
+      const track = document.createElement("div");
+      track.className = "report-revenue-track";
+
+      const bar = document.createElement("div");
+      bar.className = "report-revenue-bar";
+      bar.style.width =
+        `${Math.max(0, Number(row.new_members) / maxMembers * 100)}%`;
+
+      track.appendChild(bar);
+
+      const amount = document.createElement("span");
+      amount.className = "report-revenue-amount";
+      amount.textContent = `${Number(row.new_members) || 0} members`;
+
+      item.append(label, track, amount);
+      membershipChart.appendChild(item);
+    });
+  }
+}
+
+
+// Render monthly membership category growth table.
+renderTable(
+  "reportCategoryGrowth",
+  [
+    { key: "month", label: "Month" },
+    { key: "membership_category", label: "Membership Category" },
+    { key: "new_members", label: "New Registrations" }
+  ],
+  data.membership_category_growth || []
+);
+
+// Render membership category growth chart.
+const categoryChart = $("reportCategoryGrowthChart");
+
+if (categoryChart) {
+  categoryChart.replaceChildren();
+
+  const categoryRows = data.membership_category_growth || [];
+
+  if (categoryRows.length === 0) {
+    categoryChart.textContent = "No membership category data available.";
+  } else {
+    const maxMembers = Math.max(
+      ...categoryRows.map(row => Number(row.new_members) || 0),
+      1
+    );
+
+    categoryRows.forEach(row => {
+      const item = document.createElement("div");
+      item.className = "report-revenue-item";
+
+      const label = document.createElement("div");
+      label.className = "report-revenue-label";
+      label.textContent = row.membership_category;
+
+      const track = document.createElement("div");
+      track.className = "report-revenue-track";
+
+      const bar = document.createElement("div");
+      bar.className = "report-revenue-bar";
+      bar.style.width =
+        `${Math.max(0, Number(row.new_members) / maxMembers * 100)}%`;
+
+      track.appendChild(bar);
+
+      const amount = document.createElement("span");
+      amount.className = "report-revenue-amount";
+      amount.textContent = `${Number(row.new_members) || 0} members`;
+
+      item.append(label, track, amount);
+      categoryChart.appendChild(item);
+    });
+  }
+}
+
+
+      }
+    }
+
+
+    if (message) message.textContent = "Reports loaded successfully.";
+
+  } catch (error) {
+    console.error("Failed to load admin reports:", error);
+
+    if (message) {
+      message.textContent = error.message || "Unable to load reports.";
+    }
+  }
+}
+
 // Show a specific page and update navigation state.
+
 function showPage(id,button){
   document.querySelectorAll(".page").forEach(p=>p.classList.remove("active"));
   const page=$(id);
@@ -1601,7 +2060,53 @@ function showPage(id,button){
   if(id==="management") renderManagement();
   if(id==="users") renderUsers();
   if(id==="membership-applications" && typeof loadAdminApplications==="function") loadAdminApplications();
+ if (id === "advertisements" && typeof loadAdvertisementsAdmin === "function") {
+    loadAdvertisementsAdmin();
+  }
+
+  // Load report data whenever the Reports page is opened.
+if (id === "reports" && typeof loadAdminReports === "function") {
+  loadAdminReports();
 }
+
+}
+
+document.addEventListener("click", event => {
+  if (event.target.closest("#exportReportsCsv")) {
+    exportAdminReportsCsv();
+  }
+});
+
+
+/* Existing CSV export listener */
+document.addEventListener("click", event => {
+  if (event.target.closest("#exportReportsCsv")) {
+    exportAdminReportsCsv();
+  }
+});
+
+/* NEW: Apply and Clear date filter listeners */
+document.addEventListener("click", event => {
+  if (event.target.closest("#applyReportDateFilter")) {
+    const startDate = document.getElementById("reportStartDate").value;
+    const endDate = document.getElementById("reportEndDate").value;
+
+    if (startDate && endDate && startDate > endDate) {
+      alert("Start date cannot be later than end date.");
+      return;
+    }
+
+    loadAdminReports();
+  }
+
+  if (event.target.closest("#clearReportDateFilter")) {
+    document.getElementById("reportStartDate").value = "";
+    document.getElementById("reportEndDate").value = "";
+    loadAdminReports();
+  }
+});
+
+
 
 // Generate the next available Member ID in the format ICMTA001, ICMTA002, etc.
 function nextId(){
@@ -2827,4 +3332,82 @@ document.addEventListener("DOMContentLoaded", function(){
     initHeaderSearch();
   }
 })();
+
+
+const AD_API_BASE = "http://localhost:5000/api";
+
+async function advertisementRequest(path, options = {}) {
+    const token = localStorage.getItem("ICMTAdminToken");
+
+    const response = await fetch(`${AD_API_BASE}${path}`, {
+        ...options,
+        headers: {
+            ...(options.headers || {}),
+            Authorization: `Bearer ${token}`
+        }
+    });
+
+    const result = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+        throw new Error(result.detail || result.message || "Advertisement request failed.");
+    }
+
+    return result;
+}
+// Load and display advertisements in the admin panel, handling loading state, errors, and rendering the advertisement list.
+
+async function loadAdvertisementsAdmin() {
+    const tbody = document.getElementById("advertisementsTableBody");
+    if (!tbody) return;
+
+    tbody.innerHTML = `<tr><td colspan="6">Loading advertisements...</td></tr>`;
+
+    try {
+        const result = await advertisementRequest("/admin/advertisements");
+        const advertisements = result.data || [];
+
+        if (!advertisements.length) {
+            tbody.innerHTML = `<tr><td colspan="6">No advertisements found.</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = advertisements.map(ad => {
+            const id = Number(ad.advertisement_id);
+            const active = ad.is_active === true || ad.is_active === 1;
+            const image = ad.image_url
+                ? `http://localhost:5000${ad.image_url}`
+                : "";
+
+            return `
+                <tr>
+                    <td>${id}</td>
+                    <td>${image ? `<img src="${image}" alt="Banner" style="width:100px;max-height:55px;object-fit:contain">` : "No image"}</td>
+                    <td>${escapeAdvertisementText(ad.title)}</td>
+                    <td>${escapeAdvertisementText(ad.placement)}</td>
+                    <td>${active ? "Active" : "Inactive"}</td>
+                    <td>
+                        <button type="button" onclick="editAdvertisement(${id})">Edit</button>
+                        <button type="button" onclick="toggleAdvertisement(${id}, ${!active})">${active ? "Deactivate" : "Activate"}</button>
+                        <button type="button" onclick="deleteAdvertisement(${id})">Delete</button>
+                    </td>
+                </tr>
+            `;
+        }).join("");
+    } catch (error) {
+        console.error("Failed to load advertisements:", error);
+        tbody.innerHTML = `<tr><td colspan="6">Failed to load advertisements: ${escapeAdvertisementText(error.message)}</td></tr>`;
+    }
+}
+
+function escapeAdvertisementText(value) {
+    return String(value ?? "").replace(/[&<>"']/g, char => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;"
+    })[char]);
+}
+
 

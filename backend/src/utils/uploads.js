@@ -11,7 +11,12 @@ const MIME_TO_EXT = {
 };
 
 function ensureUploadDirs() {
-  for (const sub of ["member_photos", "event_posters", "payment_proofs"]) {
+  for (const sub of [
+  "member_photos",
+  "event_posters",
+  "payment_proofs",
+  "advertisement_banners"
+]) {
     fs.mkdirSync(path.join(config.uploadDir, sub), { recursive: true });
   }
 }

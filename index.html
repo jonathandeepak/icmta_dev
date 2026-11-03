@@ -83,6 +83,46 @@
   </div>
 </header>
 
+
+<!-- ICMTA Advertisement Popup -->
+<div id="advertisement-modal" class="advertisement-modal" hidden>
+  <div class="advertisement-overlay"></div>
+
+  <section
+    class="advertisement-popup"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="advertisement-title"
+  >
+    <button
+      type="button"
+      id="advertisement-close"
+      class="advertisement-close"
+      aria-label="Close advertisement"
+    >&times;</button>
+
+    <a
+      id="advertisement-link"
+      class="advertisement-link"
+      href="#"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      <img
+        id="advertisement-image"
+        class="advertisement-image"
+        src=""
+        alt="Advertisement"
+      >
+    </a>
+
+    <div class="advertisement-details">
+      <h2 id="advertisement-title"></h2>
+      <p id="advertisement-description"></p>
+    </div>
+  </section>
+</div>
+
 <!-- 1. WHO WE ARE -->
 <div class="icm-hero">
   <div class="icm-wrap">
@@ -195,22 +235,22 @@
 
     <div class="icm-ev-grid">
       <article class="icm-ev">
-        <div class="icm-ev-date"><b>16</b><span>Oct 2026</span></div>
+        <div class="icm-ev-date"><b>30</b><span>Oct 2026</span></div>
         <div class="icm-ev-body">
-          <span class="icm-ev-tag">Student Workshop &middot; Free</span>
-          <h3>Communication &amp; Etiquettes (Basic Level)</h3>
-          <p>ICMTA in association with Shri Gnanambica Degree College Autonomous. Resource Person: Brahma Mahesh K (Consultant, HCLTech). 2:00 PM–4:00 PM on Zoom. Free registration &amp; E-Certificate.</p>
-          <a class="icm-ev-go" href="pages/events.html#communication-etiquettes-workshop-2026">Details &amp; registration &rarr;</a>
+          <span class="icm-ev-tag">Hands on Workshop &middot; Free</span>
+          <h3>Canva for Teachers</h3>
+          <p>ICMTA Hands-on Workshop. Resource Person: Dr. Gundupagi Manjunath (Principal, BRIMS, Adoni). 1:30 PM–3:00 PM Online. Free registration &amp; E-Certificate.</p>
+          <a class="icm-ev-go" href="pages/events.html#canva-for-teachers-workshop-2026">Details &amp; registration &rarr;</a>
         </div>
       </article>
 
       <article class="icm-ev">
-        <div class="icm-ev-date"><b>30</b><span>Sep 2026</span></div>
+        <div class="icm-ev-date"><b>31</b><span>Oct 2026</span></div>
         <div class="icm-ev-body">
-          <span class="icm-ev-tag">Online Faculty Development Programme &middot; Free</span>
-          <h3>Empowering Educators with Future Skills</h3>
-          <p>Indian Commerce and Management Teachers Association (ICMTA) in Association with Sri Krishnadevaraya University, Anantapuram - 515003, Andhra Pradesh. 10:00 AM–5:00 PM. E-certificate for all participants.</p>
-          <a class="icm-ev-go" href="pages/events.html#upcoming">Details &amp; registration &rarr;</a>
+          <span class="icm-ev-tag">Lecture Series &middot; Free</span>
+          <h3>Developing Conceptual Framework</h3>
+          <p>ICMTA Lecture Series. Resource Person: Dr. Satyanarayana Parayitam (Professor, Charlton College of Business, UMass Dartmouth). 7:00 PM–8:00 PM Online. Free registration &amp; E-Certificate.</p>
+          <a class="icm-ev-go" href="pages/events.html#developing-conceptual-framework-2026">Details &amp; registration &rarr;</a>
         </div>
       </article>
 
@@ -339,5 +379,6 @@
 <script src="js/member-photo-map.js"></script>
 <script src="js/app.js"></script>
 <script src="js/auth.js"></script>
+<script src="js/advertisements.js"></script>
 </body>
 </html>

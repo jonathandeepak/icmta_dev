@@ -190,14 +190,21 @@ router.post(
   "/events",
   requireMember,
   upload.single("eventPoster"),
-  async (req, res, next) => {
-  const {
-    event_title, event_category, event_date, registration_deadline,
-    start_time, end_time, event_mode, speaker_name,
-    speaker_designation, speaker_institution, short_description,
-    full_description, organized_by, registration_fee, in_association_with,
-    registration_link, coordinator_name, contact_number, contact_email
-  } = req.body || {};
+    async (req, res, next) => {
+
+    console.log("========== EVENT FORM DEBUG ==========");
+    console.log("Content-Type:", req.headers["content-type"]);
+    console.log("Request Body:", req.body);
+    console.log("Uploaded File:", req.file);
+    console.log("======================================");
+
+    const {
+      event_title, event_category, event_date, registration_deadline,
+      start_time, end_time, event_mode, speaker_name,
+      speaker_designation, speaker_institution, short_description,
+      full_description, organized_by, registration_fee, in_association_with,
+      registration_link, coordinator_name, contact_number, contact_email
+    } = req.body || {};
 
   if (!cleanString(event_title) || !cleanString(event_date)) {
     return res.status(400).json({ detail: "Event title and event date are required." });
