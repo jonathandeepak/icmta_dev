@@ -1968,64 +1968,6 @@ if (membershipChart) {
     });
   }
 }
-
-
-// Render monthly membership category growth table.
-renderTable(
-  "reportCategoryGrowth",
-  [
-    { key: "month", label: "Month" },
-    { key: "membership_category", label: "Membership Category" },
-    { key: "new_members", label: "New Registrations" }
-  ],
-  data.membership_category_growth || []
-);
-
-// Render membership category growth chart.
-const categoryChart = $("reportCategoryGrowthChart");
-
-if (categoryChart) {
-  categoryChart.replaceChildren();
-
-  const categoryRows = data.membership_category_growth || [];
-
-  if (categoryRows.length === 0) {
-    categoryChart.textContent = "No membership category data available.";
-  } else {
-    const maxMembers = Math.max(
-      ...categoryRows.map(row => Number(row.new_members) || 0),
-      1
-    );
-
-    categoryRows.forEach(row => {
-      const item = document.createElement("div");
-      item.className = "report-revenue-item";
-
-      const label = document.createElement("div");
-      label.className = "report-revenue-label";
-      label.textContent = row.membership_category;
-
-      const track = document.createElement("div");
-      track.className = "report-revenue-track";
-
-      const bar = document.createElement("div");
-      bar.className = "report-revenue-bar";
-      bar.style.width =
-        `${Math.max(0, Number(row.new_members) / maxMembers * 100)}%`;
-
-      track.appendChild(bar);
-
-      const amount = document.createElement("span");
-      amount.className = "report-revenue-amount";
-      amount.textContent = `${Number(row.new_members) || 0} members`;
-
-      item.append(label, track, amount);
-      categoryChart.appendChild(item);
-    });
-  }
-}
-
-
       }
     }
 
