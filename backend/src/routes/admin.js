@@ -243,8 +243,9 @@ const [
   paymentsByCategory,
   membersByCategory,
   monthlyRevenue,
-monthlyMembershipGrowth,
-membershipCategoryGrowth,
+  monthlyMembershipGrowth,
+  membershipCategoryGrowth,
+  activeMembers // NEW: members with completed payments
 ] = await Promise.all([
 
       query(`
@@ -371,6 +372,47 @@ membershipCategoryGrowth,
         req.query.endDate || null
       ]),
 
+// Count distinct registered members with at least one successful payment.
+// Prefer the payment member ID; fall back to the linked application's member ID.
+query(`
+  SELECT COUNT(DISTINCT m.member_id) AS active_members
+  FROM membership_payments p
+
+  LEFT JOIN membership_applications ma
+    ON p.application_id = ma.application_id
+
+  LEFT JOIN members payment_member
+    ON payment_member.member_id =
+       NULLIF(TRIM(p.member_id), '')
+
+  LEFT JOIN members application_member
+    ON application_member.member_id =
+       NULLIF(TRIM(ma.member_id), '')
+
+  INNER JOIN members m
+    ON m.member_id = COALESCE(
+      payment_member.member_id,
+      application_member.member_id
+    )
+
+  WHERE p.payment_status = 'Paid'
+
+    AND (
+      ? IS NULL
+      OR DATE(COALESCE(p.paid_at, p.created_at)) >= ?
+    )
+
+    AND (
+      ? IS NULL
+      OR DATE(COALESCE(p.paid_at, p.created_at)) <= ?
+    )
+`, [
+  req.query.startDate || null,
+  req.query.startDate || null,
+  req.query.endDate || null,
+  req.query.endDate || null
+]),
+
     ]);
 
     res.json({
@@ -382,6 +424,8 @@ membershipCategoryGrowth,
           status: row.approval_status,
           count: Number(row.count),
         })),
+
+        active_members: Number(activeMembers[0]?.active_members || 0),
 
         payments_by_status: paymentsByStatus.map(row => ({
           currency: row.currency,
@@ -961,7 +1005,7 @@ router.post("/admin/payments/:payment_id/reject", async (req, res, next) => {
 router.get("/admin/reports/details", async (req, res, next) => {
   try {
     const type = cleanString(req.query.type).toLowerCase();
-    const allowedTypes = ["members", "registrations", "applications", "payments"];
+    const allowedTypes = ["members", "registrations", "applications", "payments","active-members"];
 
     if (!allowedTypes.includes(type)) {
       return res.status(400).json({
@@ -1015,7 +1059,26 @@ router.get("/admin/reports/details", async (req, res, next) => {
           m.designation,
           m.department,
           m.institution,
-          m.membership_category,
+         COALESCE(
+  (
+    SELECT NULLIF(mp.membership_category, '')
+    FROM membership_payments mp
+    WHERE mp.member_id = m.member_id
+      AND mp.payment_status = 'Paid'
+    ORDER BY
+      COALESCE(mp.paid_at, mp.created_at) DESC,
+      mp.payment_id DESC
+    LIMIT 1
+  ),
+  (
+    SELECT NULLIF(ma.membership_category, '')
+    FROM membership_applications ma
+    WHERE ma.member_id = m.member_id
+    ORDER BY ma.updated_at DESC, ma.application_id DESC
+    LIMIT 1
+  ),
+  NULLIF(m.membership_category, '')
+) AS membership_category,
           m.is_active,
           m.my_status,
           m.created_at,
@@ -1057,6 +1120,146 @@ router.get("/admin/reports/details", async (req, res, next) => {
         params.push(status, status);
       }
     }
+// Report details: registered members with successful payments.
+// Each registered member appears only once, even if they have multiple payments.
+
+// Report details: registered members with successful payments.
+// Filter individual payment dates before grouping members.
+// This keeps the drill-down consistent with the overview count.
+if (type === "active-members") {
+
+  // Apply the date range to individual paid transactions.
+  // These parameters must be added before outer WHERE parameters.
+  params.push(
+    startDate,
+    startDate,
+    endDate,
+    endDate
+  );
+
+  fromSql = `
+    FROM members m
+
+    INNER JOIN (
+      SELECT
+        COALESCE(
+          payment_member.member_id,
+          application_member.member_id
+        ) AS member_id,
+
+        MAX(COALESCE(p.paid_at, p.created_at)) AS membership_paid_at,
+
+SUBSTRING_INDEX(
+  GROUP_CONCAT(
+    COALESCE(
+      NULLIF(p.membership_category, ''),
+      NULLIF(ma.membership_category, '')
+    )
+    ORDER BY
+      COALESCE(p.paid_at, p.created_at) DESC,
+      p.payment_id DESC
+    SEPARATOR '|||'
+  ),
+  '|||',
+  1
+) AS membership_category
+
+      FROM membership_payments p
+
+      LEFT JOIN membership_applications ma
+        ON p.application_id = ma.application_id
+
+      LEFT JOIN members payment_member
+        ON payment_member.member_id =
+           NULLIF(TRIM(p.member_id), '')
+
+      LEFT JOIN members application_member
+        ON application_member.member_id =
+           NULLIF(TRIM(ma.member_id), '')
+
+      WHERE p.payment_status = 'Paid'
+
+        AND (? IS NULL OR
+          DATE(COALESCE(p.paid_at, p.created_at)) >= ?)
+
+        AND (? IS NULL OR
+          DATE(COALESCE(p.paid_at, p.created_at)) <= ?)
+
+        AND COALESCE(
+          payment_member.member_id,
+          application_member.member_id
+        ) IS NOT NULL
+
+      GROUP BY COALESCE(
+        payment_member.member_id,
+        application_member.member_id
+      )
+
+    ) paid ON paid.member_id = m.member_id
+
+    LEFT JOIN member_contact_info c
+      ON m.member_id = c.member_id
+
+    LEFT JOIN member_academic_profile ap
+      ON m.member_id = ap.member_id
+  `;
+
+  selectSql = `
+    SELECT
+      m.member_id,
+      m.name,
+      m.designation,
+      m.department,
+      m.institution,
+     COALESCE(
+  NULLIF(paid.membership_category, ''),
+  NULLIF(m.membership_category, '')
+) AS membership_category,
+      m.is_active,
+      m.my_status,
+      m.created_at,
+
+      c.professional_email,
+      c.personal_email,
+      c.mobile,
+      c.city,
+      c.state_province,
+      c.country,
+
+      ap.qualification,
+      ap.photo_url,
+
+      paid.membership_paid_at
+  `;
+
+  searchSql = `(
+    m.member_id LIKE ? OR
+    m.name LIKE ? OR
+    m.institution LIKE ? OR
+    m.designation LIKE ? OR
+    c.professional_email LIKE ? OR
+    c.personal_email LIKE ? OR
+    c.mobile LIKE ?
+  )`;
+
+  // Category and status filters apply to registered members.
+  // Payment date filtering is already handled inside the subquery.
+
+  if (category) {
+  where.push(`
+    COALESCE(
+      NULLIF(paid.membership_category, ''),
+      NULLIF(m.membership_category, '')
+    ) = ?
+  `);
+  params.push(category);
+}
+
+  if (status) {
+    where.push("(m.my_status = ? OR CAST(m.is_active AS CHAR) = ?)");
+    params.push(status, status);
+  }
+}
 
     
 if (type === "applications") {
@@ -1158,9 +1361,12 @@ if (type === "applications") {
     if (search) {
       where.push(searchSql);
       const term = `%${search}%`;
-      const searchFields = type === "members" || type === "registrations"
-        ? 7
-        : type === "applications" ? 6 : 7;
+      const searchFields =
+  type === "members" ||
+  type === "registrations" ||
+  type === "active-members"
+    ? 7
+    : type === "applications" ? 6 : 7;
 
       for (let i = 0; i < searchFields; i++) {
         params.push(term);
@@ -1176,18 +1382,24 @@ if (type === "applications") {
       params
     );
 
-    const rows = await query(
-      `${selectSql} ${fromSql} ${whereSql}
-       ORDER BY ${
-         type === "members" || type === "registrations"
-           ? "m.created_at"
-           : type === "applications"
-             ? "ma.created_at"
-             : "COALESCE(p.paid_at, p.created_at)"
-       } DESC
-       LIMIT ${limit} OFFSET ${offset}`,
-      params
-    );
+   const rows = await query(
+  `${selectSql} ${fromSql} ${whereSql}
+   ORDER BY ${
+     type === "members" || type === "registrations"
+       ? "CAST(SUBSTRING(m.member_id, 5) AS UNSIGNED)"
+       : type === "active-members"
+         ? "paid.membership_paid_at"
+         : type === "applications"
+           ? "ma.created_at"
+           : "COALESCE(p.paid_at, p.created_at)"
+   } ${
+     type === "members" || type === "registrations"
+       ? "ASC"
+       : "DESC"
+   }
+   LIMIT ${limit} OFFSET ${offset}`,
+  params
+);
 
     const total = Number(countRows[0]?.total || 0);
 

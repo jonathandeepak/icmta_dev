@@ -1712,6 +1712,39 @@ window.adminReportsData = data;
       (data.payments_by_status || [])
         .filter(row => row.status === status)
         .reduce((total, row) => total + row.transaction_count, 0);
+
+ //< ====================================================================================== =============================================================
+    // Calculate total amount collected from Paid transactions.                                                      Total amount card
+// Keep different currencies separate instead of adding them together.
+  //==================================================================================================================================== -->
+const paidAmountsByCurrency = {};
+
+(data.payments_by_status || [])
+  .filter(row => String(row.status).toLowerCase() === "paid")
+  .forEach(row => {
+    const currency = row.currency || "INR";
+
+    paidAmountsByCurrency[currency] =
+      (paidAmountsByCurrency[currency] || 0) +
+      Number(row.total_amount || 0);
+  });
+
+const totalAmountDisplay = Object.entries(paidAmountsByCurrency)
+  .map(([currency, amount]) =>
+    new Intl.NumberFormat("en-IN", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 2
+    }).format(amount)
+  )
+  .join(" | ") || "₹0.00";    
+
+  //=======================================================
+  //END OF THE CARD
+  //=======================================================
+
+
+
     // Display new member registrations within the selected date range.
 const newMembers = (data.monthly_membership_growth || [])
   .reduce((total, row) => total + Number(row.new_members || 0), 0);
@@ -1719,9 +1752,11 @@ const newMembers = (data.monthly_membership_growth || [])
 
     // Update summary cards.
     $("reportTotalMembers").textContent = data.total_members;// Display the total number of members.
+    $("reportActiveMembers").textContent =Number(data.active_members || 0); // Display the number of unique members with completed payments.
     $("reportApprovedApps").textContent = applicationCount("Approved");// Display the count of approved membership applications.
     $("reportPendingPayments").textContent = paymentCount("Pending");// Display the count of paid transactions.
     $("reportPaidTransactions").textContent = paymentCount("Paid");// Display the count of new member registrations.
+    $("reportTotalAmount").textContent = totalAmountDisplay;// Display the total amount collected from Paid transactions, formatted by currency.
     $("reportNewMembers").textContent = newMembers;   // Display the count of new member registrations.
     // Render a table using textContent to avoid inserting raw HTML data.
     const renderTable = (containerId, columns, rows) => {
@@ -1982,6 +2017,351 @@ if (membershipChart) {
     }
   }
 }
+
+
+/* =========================================================
+   REPORT DETAILS DRAWER
+   Purpose:
+   Opens the records behind a summary card and loads them
+   from /api/admin/reports/details with search, filters
+   and pagination.
+   ========================================================= */
+
+// Store the current report selection and pagination state.
+let reportDetailsState = {
+  type: "",
+  status: "",
+  category: "",
+  page: 1,
+  limit: 20
+};
+
+// Define the columns displayed for each report type.
+const reportDetailsColumns = {
+  members: [
+    ["member_id", "Member ID"],
+    ["name", "Name"],
+    ["membership_category", "Category"],
+    ["designation", "Designation"],
+    ["institution", "Institution"],
+    ["professional_email", "Email"],
+    ["mobile", "Mobile"],
+    ["created_at", "Registered On"]
+  ],
+
+    "active-members": [
+    ["member_id", "Member ID"],
+    ["name", "Name"],
+    ["membership_category", "Category"],
+    ["designation", "Designation"],
+    ["institution", "Institution"],
+    ["professional_email", "Email"],
+    ["mobile", "Mobile"],
+    ["membership_paid_at", "Membership Paid On"]
+  ],
+
+  registrations: [
+    ["member_id", "Member ID"],
+    ["name", "Name"],
+    ["membership_category", "Category"],
+    ["professional_email", "Email"],
+    ["mobile", "Mobile"],
+    ["created_at", "Registered On"]
+  ],
+
+  applications: [
+    ["application_id", "Application ID"],
+    ["member_id", "Member ID"],
+    ["full_name", "Applicant"],
+    ["membership_category", "Category"],
+    ["approval_status", "Application Status"],
+    ["professional_email", "Email"],
+    ["mobile", "Mobile"],
+    ["created_at", "Applied On"]
+  ],
+
+  payments: [
+    ["payment_id", "Payment ID"],
+    ["application_id", "Application ID"],
+    ["applicant_name", "Applicant"],
+    ["membership_category", "Category"],
+    ["amount", "Amount"],
+    ["currency", "Currency"],
+    ["transaction_id", "Transaction ID"],
+    ["payment_status", "Payment Status"],
+    ["paid_at", "Paid On"]
+  ]
+};
+
+
+// Open the drawer when an admin clicks a summary card.
+function openReportDetails(type, status = "") {
+  const drawer = document.getElementById("reportDetailsDrawer");
+
+  if (!drawer) {
+    console.error("Report Details drawer was not found.");
+    return;
+  }
+
+  reportDetailsState = {
+    type,
+    status,
+    category: "",
+    page: 1,
+    limit: 20
+  };
+
+  // Update drawer heading based on the selected card.
+  const titles = {
+  members: "Total Members",
+  "active-members": "Members with Active Membership",
+  registrations: "New Registrations",
+  applications: status
+    ? `${status} Applications`
+    : "Membership Applications",
+  payments: status
+    ? `${status} Payments`
+    : "Payment Transactions"
+};
+
+  document.getElementById("reportDetailsTitle").textContent =
+    titles[type] || "Report Details";
+
+  document.getElementById("reportDetailsSubtitle").textContent =
+    "View and filter the records included in this report.";
+
+  // Reset the search field for the new report.
+  document.getElementById("reportDetailsSearch").value = "";
+
+  // Apply the status filter selected by the summary card.
+  const statusFilter = document.getElementById("reportDetailsStatus");
+  statusFilter.value = status;
+
+  // Reset the category filter.
+  document.getElementById("reportDetailsCategory").value = "";
+
+  drawer.style.display = "flex";
+
+  loadReportDetails();
+}
+
+
+// Fetch report records from the backend.
+async function loadReportDetails() {
+  const message = document.getElementById("reportDetailsMessage");
+  const tbody = document.getElementById("reportDetailsTableBody");
+  const thead = document.getElementById("reportDetailsTableHead");
+
+  const token = localStorage.getItem("ICMTAdminToken");
+
+  if (!token) {
+    message.textContent = "Admin session not found. Please log in again.";
+    return;
+  }
+
+  message.textContent = "Loading records...";
+  tbody.replaceChildren();
+  thead.replaceChildren();
+
+  try {
+    const params = new URLSearchParams({
+      type: reportDetailsState.type,
+      page: reportDetailsState.page,
+      limit: reportDetailsState.limit
+    });
+
+    const search = document.getElementById("reportDetailsSearch").value.trim();
+
+    if (search) params.set("search", search);
+    if (reportDetailsState.status) {
+      params.set("status", reportDetailsState.status);
+    }
+    if (reportDetailsState.category) {
+      params.set("category", reportDetailsState.category);
+    }
+
+    // Reuse the date range selected on the Reports & Analytics page.
+    const startDate = document.getElementById("reportStartDate")?.value;
+    const endDate = document.getElementById("reportEndDate")?.value;
+
+    if (startDate) params.set("startDate", startDate);
+    if (endDate) params.set("endDate", endDate);
+
+    const response = await fetch(
+      `http://localhost:5000/api/admin/reports/details?${params.toString()}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    );
+
+    const result = await response.json();
+
+    if (!response.ok || !result.success) {
+      throw new Error(
+        result.message || result.detail || "Unable to load report records."
+      );
+    }
+
+    const rows = result.data || [];
+    const pagination = result.pagination || {};
+
+    // Create table headings for the selected report type.
+    const columns = reportDetailsColumns[reportDetailsState.type] || [];
+
+    const headerRow = document.createElement("tr");
+
+    columns.forEach(([key, label]) => {
+      const th = document.createElement("th");
+      th.textContent = label;
+      headerRow.appendChild(th);
+    });
+
+    thead.appendChild(headerRow);
+
+    // Display the records safely using textContent.
+    if (!rows.length) {
+      const tr = document.createElement("tr");
+      const td = document.createElement("td");
+
+      td.colSpan = columns.length || 1;
+      td.textContent = "No matching records found.";
+
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+    } else {
+      rows.forEach(record => {
+        const tr = document.createElement("tr");
+
+        columns.forEach(([key]) => {
+          const td = document.createElement("td");
+          const value = record[key];
+
+          td.textContent =
+            value === null || value === undefined || value === ""
+              ? "—"
+              : String(value);
+
+          tr.appendChild(td);
+        });
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Update pagination information.
+    const total = Number(pagination.total || 0);
+    const currentPage = Number(pagination.page || 1);
+    const totalPages = Number(pagination.totalPages || 0);
+
+    document.getElementById("reportDetailsPaginationInfo").textContent =
+      `Showing ${rows.length} records | Total: ${total} | Page ${currentPage} of ${totalPages}`;
+
+    document.getElementById("reportDetailsPrevious").disabled =
+      currentPage <= 1;
+
+    document.getElementById("reportDetailsNext").disabled =
+      currentPage >= totalPages;
+
+    message.textContent = "";
+
+  } catch (error) {
+    console.error("Report details loading failed:", error);
+    message.textContent = error.message || "Failed to load records.";
+  }
+}
+
+
+// Attach click and keyboard events to all summary cards.
+document.querySelectorAll(".report-drilldown-card").forEach(card => {
+  const openCard = () => {
+    openReportDetails(
+      card.dataset.reportType,
+      card.dataset.reportStatus || ""
+    );
+  };
+
+  card.addEventListener("click", openCard);
+
+  card.addEventListener("keydown", event => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openCard();
+    }
+  });
+});
+
+
+// Close the drawer.
+document.getElementById("closeReportDetails")?.addEventListener("click", () => {
+  document.getElementById("reportDetailsDrawer").style.display = "none";
+});
+
+
+// Close the drawer when the admin clicks the overlay.
+document.getElementById("reportDetailsDrawer")?.addEventListener("click", event => {
+  if (event.target.id === "reportDetailsDrawer") {
+    event.currentTarget.style.display = "none";
+  }
+});
+
+
+// Search records.
+document.getElementById("reportDetailsSearch")?.addEventListener("input", () => {
+  reportDetailsState.page = 1;
+  loadReportDetails();
+});
+
+
+// Apply status filter.
+document.getElementById("reportDetailsStatus")?.addEventListener("change", event => {
+  reportDetailsState.status = event.target.value;
+  reportDetailsState.page = 1;
+  loadReportDetails();
+});
+
+
+// Apply membership category filter.
+document.getElementById("reportDetailsCategory")?.addEventListener("change", event => {
+  reportDetailsState.category = event.target.value;
+  reportDetailsState.page = 1;
+  loadReportDetails();
+});
+
+
+// Clear drawer filters.
+document.getElementById("clearReportDetailsFilters")?.addEventListener("click", () => {
+  document.getElementById("reportDetailsSearch").value = "";
+  document.getElementById("reportDetailsStatus").value = "";
+  document.getElementById("reportDetailsCategory").value = "";
+
+  reportDetailsState.status = "";
+  reportDetailsState.category = "";
+  reportDetailsState.page = 1;
+
+  loadReportDetails();
+});
+
+
+// Previous page.
+document.getElementById("reportDetailsPrevious")?.addEventListener("click", () => {
+  if (reportDetailsState.page > 1) {
+    reportDetailsState.page--;
+    loadReportDetails();
+  }
+});
+
+
+// Next page.
+document.getElementById("reportDetailsNext")?.addEventListener("click", () => {
+  reportDetailsState.page++;
+  loadReportDetails();
+});
+
+
+
+
 
 // Show a specific page and update navigation state.
 

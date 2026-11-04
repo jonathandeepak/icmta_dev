@@ -300,40 +300,114 @@
     <!-- Displays loading, success, or error messages -->
     <div id="reportsMessage">Loading reports...</div>
 
-    <!-- Summary cards for key membership and payment metrics -->
-    <div class="stats-grid">
+    
+<!-- =========================================================
+     REPORT SUMMARY CARDS
+     Purpose:
+     Displays key membership and payment metrics.
+     Each card carries report metadata so JavaScript can
+     open the Report Details drawer with matching records.
+     Existing IDs are preserved for loadAdminReports().
+     ========================================================= -->
+<div class="stats-grid">
 
-      <!-- Total number of members in the database -->
-      <div class="stat-card">
-        <h3>Total Members</h3>
-        <p id="reportTotalMembers">—</p>
-      </div>
+  <!-- Total Members: opens the complete member records list. -->
+  <!-- Opens the detailed list of all members -->
+<div class="stat-card report-drilldown-card"
+     data-report-type="members"
+     role="button"
+     tabindex="0"
+     aria-label="View total member details">
+    <h3>Total Members</h3>
+    <p id="reportTotalMembers">—</p>
+  </div>
 
-      <!-- Number of membership applications approved by admins -->
-      <div class="stat-card">
-        <h3>Approved Applications</h3>
-        <p id="reportApprovedApps">—</p>
-      </div>
 
-      <!-- Number of payments currently awaiting processing -->
-      <div class="stat-card">
-        <h3>Pending Payments</h3>
-        <p id="reportPendingPayments">—</p>
-      </div>
-
-      <!-- Number of transactions with Paid status -->
-      <div class="stat-card">
-        <h3>Paid Transactions</h3>
-        <p id="reportPaidTransactions">—</p>
-      </div>
- 
-<!-- New members within the selected reporting period -->
-<div class="stat-card">
-  <h3>New Registrations</h3>
-  <p id="reportNewMembers">—</p>
+  <!-- Shows unique members who completed their membership payment. -->
+<div
+  class="stat-card report-drilldown-card"
+  role="button"
+  tabindex="0"
+  data-report-type="active-members"
+  aria-label="View members with completed membership payments"
+>
+  <h3>Members with Active Membership</h3>
+  <p id="reportActiveMembers">—</p>
 </div>
 
-    </div>
+  <!-- Approved Applications: shows only applications with Approved status. -->
+  <!-- Opens applications with Approved status -->
+<div class="stat-card report-drilldown-card"
+     data-report-type="applications"
+     data-report-status="Approved"
+     role="button"
+     tabindex="0"
+     aria-label="View approved applications">
+    <h3>Approved Applications</h3>
+    <p id="reportApprovedApps">—</p>
+  </div>
+
+  <!-- Pending Payments: shows only transactions awaiting payment. -->
+  <!-- Opens payments with Pending status -->
+<div class="stat-card report-drilldown-card"
+     data-report-type="payments"
+     data-report-status="Pending"
+     role="button"
+     tabindex="0"
+     aria-label="View pending payments">
+    <h3>Pending Payments</h3>
+    <p id="reportPendingPayments">—</p>
+  </div>
+
+  <!-- Paid Transactions: shows only successfully paid transactions. -->
+  <!-- Opens payments with Paid status -->
+<div class="stat-card report-drilldown-card"
+     data-report-type="payments"
+     data-report-status="Paid"
+     role="button"
+     tabindex="0"
+     aria-label="View paid transactions">
+    <h3>Paid Transactions</h3>
+    <p id="reportPaidTransactions">—</p>
+  </div>
+
+  <!-- Total Amount Collected: shows the individual paid transactions
+       that contribute to the total amount displayed on this card. -->
+  <!-- Opens the paid transactions contributing to collected revenue -->
+<div class="stat-card report-drilldown-card"
+     data-report-type="payments"
+     data-report-status="Paid"
+     role="button"
+     tabindex="0"
+     aria-label="View collected payment details">
+    <h3>Total Amount Collected</h3>
+    <p id="reportTotalAmount">—</p>
+  </div>
+
+  <!-- New Registrations: shows registrations within the selected
+       reporting date range. -->
+  <!-- Opens member registration records -->
+<div class="stat-card report-drilldown-card"
+     data-report-type="registrations"
+     role="button"
+     tabindex="0"
+     aria-label="View new registration details">
+    <h3>New Registrations</h3>
+    <p id="reportNewMembers">—</p>
+  </div>
+
+</div>
+
+
+<!-- ===============================================================================================================
+ END OF
+     REPORT SUMMARY CARDS
+     Purpose:
+     Displays key membership and payment metrics.
+     Each card carries report metadata so JavaScript can
+     open the Report Details drawer with matching records.
+     Existing IDs are preserved for loadAdminReports().
+     ============================================================================================================== -->
 
     <!-- Table: transaction counts and amounts grouped by payment status -->
     <h3>Payments by Status</h3>
@@ -356,6 +430,204 @@
 <div id="reportMonthlyRevenueChart" class="report-revenue-chart"></div>
 
 <div id="reportMonthlyRevenue"></div>
+<!--===============================================================================================
+END OF THE MONTHLY REVENUE REPORT
+===============================================================================================-->
+
+<!-- =========================================================
+     REPORT DETAILS DRAWER
+     Purpose:
+     Displays the individual records behind a selected
+     Reports & Analytics summary card.
+
+     This panel is independent of the existing dashboard
+     and event-review panels.
+     ========================================================= -->
+
+<div
+  id="reportDetailsDrawer"
+  style="
+    display:none;
+    position:fixed;
+    inset:0;
+    z-index:10000;
+    background:rgba(15,23,42,0.55);
+    justify-content:flex-end;
+  "
+  aria-hidden="true"
+>
+  <!-- Main drawer panel -->
+  <div
+    id="reportDetailsPanel"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="reportDetailsTitle"
+    style="
+      width:min(1100px,96%);
+      height:100%;
+      overflow-y:auto;
+      background:#ffffff;
+      padding:24px;
+      box-shadow:-8px 0 30px rgba(0,0,0,0.15);
+      box-sizing:border-box;
+    "
+  >
+
+    <!-- Drawer heading and close action -->
+    <div style="
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:16px;
+      flex-wrap:wrap;
+      margin-bottom:20px;
+    ">
+      <div>
+        <h2
+          id="reportDetailsTitle"
+          style="margin:0;color:#0f172a;"
+        >
+          Report Details
+        </h2>
+
+        <!-- Displays the selected report type and date range -->
+        <p
+          id="reportDetailsSubtitle"
+          style="margin:6px 0 0;color:#64748b;font-size:13px;"
+        >
+          Detailed report records
+        </p>
+      </div>
+
+      <!-- Closes the details drawer without changing the report page -->
+      <button
+        type="button"
+        class="btn secondary"
+        id="closeReportDetails"
+        aria-label="Close report details"
+      >
+        ✕ Close
+      </button>
+    </div>
+
+    <!-- Search and filter controls for the selected report -->
+    <div style="
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+      gap:12px;
+      margin-bottom:16px;
+    ">
+
+      <!-- Searches records in the currently selected report -->
+      <input
+        type="search"
+        id="reportDetailsSearch"
+        placeholder="Search records..."
+        aria-label="Search report records"
+      >
+
+      <!-- JavaScript will configure relevant status options -->
+      <select
+        id="reportDetailsStatus"
+        aria-label="Filter by status"
+      >
+        <option value="">All Statuses</option>
+      </select>
+
+      <!-- JavaScript will configure relevant membership categories -->
+      <select
+        id="reportDetailsCategory"
+        aria-label="Filter by membership category"
+      >
+        <option value="">All Categories</option>
+      </select>
+
+      <!-- Clears the drawer-specific search and filters -->
+      <button
+        type="button"
+        class="btn secondary"
+        id="clearReportDetailsFilters"
+      >
+        Clear Filters
+      </button>
+    </div>
+
+    <!-- Shows loading, result count, or error information -->
+    <div
+      id="reportDetailsMessage"
+      role="status"
+      aria-live="polite"
+      style="margin:12px 0;color:#64748b;font-size:13px;"
+    >
+      Select a report card to view its records.
+    </div>
+
+    <!-- Scrollable records table -->
+    <div style="
+      width:100%;
+      overflow-x:auto;
+      border:1px solid #e2e8f0;
+      border-radius:8px;
+    ">
+      <table
+        class="table"
+        id="reportDetailsTable"
+        style="width:100%;margin:0;"
+      >
+        <!-- JavaScript will generate the table headings and rows -->
+        <thead id="reportDetailsTableHead"></thead>
+
+        <!-- JavaScript will populate the selected report records -->
+        <tbody id="reportDetailsTableBody"></tbody>
+      </table>
+    </div>
+
+    <!-- Previous/next controls and current page information -->
+    <div style="
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      flex-wrap:wrap;
+      margin-top:18px;
+    ">
+
+      <!-- Displays the current page and total record count -->
+      <span
+        id="reportDetailsPaginationInfo"
+        style="font-size:13px;color:#64748b;"
+      >
+        Page 1
+      </span>
+
+      <!-- Pagination buttons are controlled by app.js -->
+      <div style="display:flex;gap:8px;">
+        <button
+          type="button"
+          class="btn secondary"
+          id="reportDetailsPrevious"
+          disabled
+        >
+          Previous
+        </button>
+
+        <button
+          type="button"
+          class="btn secondary"
+          id="reportDetailsNext"
+          disabled
+        >
+          Next
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================
+ END REPORT DETAILS DRAWER                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           END REPORT DETAILS DRAWER                                                                                        
+ ====================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================================-->
 
 <section id="directory" class="page"><div class="panel"><h2>Faculty Directory</h2>
 <div class="toolbar"><input id="search" placeholder="Search name, college, department or expertise" oninput="renderDirectory()"><select id="filterState" onchange="renderDirectory()"><option value="">All States</option></select><select id="filterCountry" onchange="renderDirectory()"><option value="">All Countries</option></select><select id="filterDes" onchange="renderDirectory()"><option value="">All Designations</option><option>Professor</option><option>Associate Professor</option><option>Assistant Professor</option><option>Research Scholar</option></select><select id="sortBy" onchange="renderDirectory()"><option value="id">Member ID (Order)</option><option value="name">Name A–Z</option><option value="designation">Designation</option><option value="state">State</option><option value="country">Country</option><option value="expertise">Expertise</option></select><button class="btn primary" onclick="showPage('add')">+ Add Member</button></div>
